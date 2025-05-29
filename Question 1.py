@@ -1,3 +1,6 @@
+# Additions to Day 1: cropping interaction
+# Full standalone Day 2 code
+
 import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
@@ -17,6 +20,8 @@ class ImageApp:
         self.cv_image = None
         self.tk_image = None
         self.scale = 1
+        self.start_x = self.start_y = 0
+        self.rect_id = None
 
     def load_image(self):
         path = filedialog.askopenfilename()
@@ -25,6 +30,9 @@ class ImageApp:
 
         self.cv_image = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
         self.display_image(self.cv_image)
+
+        self.canvas.bind("<ButtonPress-1>", self.start_crop)
+        self.canvas.bind("<B1-Motion>", self.draw_crop)
 
     def display_image(self, img_array):
         max_w, max_h = 800, 600
@@ -36,6 +44,19 @@ class ImageApp:
         self.canvas.config(width=new_w, height=new_h)
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, anchor=tk.NW, image=self.tk_image)
+
+    def start_crop(self, event):
+        self.start_x, self.start_y = event.x, event.y
+        if self.rect_id:
+            self.canvas.delete(self.rect_id)
+        self.rect_id = None
+
+    def draw_crop(self, event):
+        if self.rect_id:
+            self.canvas.delete(self.rect_id)
+        self.rect_id = self.canvas.create_rectangle(
+            self.start_x, self.start_y, event.x, event.y, outline="red", width=2
+        )
 
 if __name__ == "__main__":
     root = tk.Tk()
