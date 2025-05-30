@@ -12,5 +12,5 @@ use `pip install tk` for tkinter, if python version lower than 3.x or library no
 
 in Question 2
 - for shooting: F key
-- for jump spacebar
-- for movement side arrow keys
+- for jump: spacebar
+- for movement: side arrow keys
