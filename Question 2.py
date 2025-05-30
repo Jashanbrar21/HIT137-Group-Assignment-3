@@ -4,13 +4,14 @@ import sys
 pygame.init()
 WIDTH, HEIGHT = 800, 400
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Day 3 - Health, Lives, Collectibles")
+pygame.display.set_caption("Final Game - Day 4")
 clock = pygame.time.Clock()
 
 WHITE = (255, 255, 255)
 FONT = pygame.font.SysFont(None, 24)
 
-# Player class
+# ---------------- Classes ----------------
+
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
@@ -41,7 +42,7 @@ class Player(pygame.sprite.Sprite):
         if self.damage_timer > 0:
             self.damage_timer -= 1
 
-# Projectile class
+
 class Projectile(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
@@ -56,14 +57,14 @@ class Projectile(pygame.sprite.Sprite):
         if self.rect.x > WIDTH:
             self.kill()
 
-# Enemy class
+
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, x, y):
+    def __init__(self, x, y, health=350):
         super().__init__()
         self.image = pygame.Surface((40, 60))
         self.image.fill((255, 0, 0))
         self.rect = self.image.get_rect(topleft=(x, y))
-        self.health = 50
+        self.health = health
         self.passed = False
 
     def update(self):
@@ -71,13 +72,31 @@ class Enemy(pygame.sprite.Sprite):
         if self.rect.right < 0:
             self.kill()
 
-# Collectible class
+
+class BossEnemy(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((80, 200))
+        self.image.fill((128, 0, 128))
+        self.rect = self.image.get_rect(midbottom=(WIDTH + 100, HEIGHT - 40))
+        self.health = 4000
+        self.passed = False
+
+    def update(self):
+        self.rect.x -= 1
+        if self.rect.right < 0:
+            self.kill()
+
+
 class Collectible(pygame.sprite.Sprite):
     def __init__(self, x, y, type):
         super().__init__()
         self.image = pygame.Surface((20, 20))
         self.type = type
-        self.image.fill((0, 255, 0) if type == 'health' else (255, 255, 0))
+        if type == 'health':
+            self.image.fill((0, 255, 0))
+        elif type == 'life':
+            self.image.fill((255, 255, 0))
         self.rect = self.image.get_rect(center=(x, y))
 
     def update(self):
@@ -85,7 +104,8 @@ class Collectible(pygame.sprite.Sprite):
         if self.rect.right < 0:
             self.kill()
 
-# Utility
+# ---------------- Utility Functions ----------------
+
 def draw_text(text, size, color, y_offset):
     font = pygame.font.SysFont(None, size)
     text_surface = font.render(text, True, color)
@@ -103,6 +123,14 @@ def game_over_screen(score):
     pygame.display.update()
     wait_for_restart()
 
+def win_screen(score):
+    WIN.fill(WHITE)
+    draw_text("YOU WIN!", 48, (0, 128, 0), -40)
+    draw_text(f"Final Score: {score}", 32, (0, 0, 0), 10)
+    draw_text("Press R to Restart or ESC to Exit", 24, (0, 0, 0), 50)
+    pygame.display.update()
+    wait_for_restart()
+
 def wait_for_restart():
     while True:
         for event in pygame.event.get():
@@ -112,11 +140,12 @@ def wait_for_restart():
         keys = pygame.key.get_pressed()
         if keys[pygame.K_r]:
             main()
-        elif keys[pygame.K_ESCAPE]:
+        if keys[pygame.K_ESCAPE]:
             pygame.quit()
             sys.exit()
 
-# Main game
+# ---------------- Main Game Function ----------------
+
 def main():
     player = Player()
     bullets = pygame.sprite.Group()
@@ -124,8 +153,11 @@ def main():
     collectibles = pygame.sprite.Group()
 
     score = 0
+    level = 1
+    boss_spawned = False
     spawn_timer = 0
     collect_timer = 0
+
     run = True
     while run:
         clock.tick(60)
@@ -143,33 +175,56 @@ def main():
         if keys[pygame.K_f]:
             bullets.add(Projectile(player.rect.right, player.rect.centery))
 
-        if spawn_timer % 100 == 0:
+        # Enemy spawn before boss
+        if spawn_timer % 200 == 0 and level < 3:
             enemies.add(Enemy(WIDTH, HEIGHT - 100))
 
-        if collect_timer % 300 == 0:
+        # Collectible spawns
+        if collect_timer % 400 == 0:
             collectibles.add(Collectible(WIDTH, HEIGHT - 120, 'health'))
-        if collect_timer % 500 == 0:
+        if collect_timer % 600 == 0:
             collectibles.add(Collectible(WIDTH, HEIGHT - 120, 'life'))
 
+        # Level update
+        if score < 30:
+            level = 1
+        elif score < 60:
+            level = 2
+        else:
+            level = 3
+
+        # Spawn boss once
+        if level == 3 and not boss_spawned:
+            enemies.add(BossEnemy())
+            boss_spawned = True
+
+        # Bullet hits
         for bullet in bullets:
-            for enemy in pygame.sprite.spritecollide(bullet, enemies, False):
+            hit_enemies = pygame.sprite.spritecollide(bullet, enemies, False)
+            for enemy in hit_enemies:
                 enemy.health -= bullet.damage
                 bullet.kill()
                 if enemy.health <= 0:
                     enemy.kill()
-                    score += 5
+                    score += 100 if isinstance(enemy, BossEnemy) else 5
+                    if isinstance(enemy, BossEnemy):
+                        win_screen(score)
+                        return
 
+        # Collectibles
         for c in pygame.sprite.spritecollide(player, collectibles, True):
             if c.type == 'health':
                 player.health = min(100, player.health + 20)
             elif c.type == 'life':
                 player.lives += 1
 
+        # Avoidance score
         for enemy in enemies:
             if not enemy.passed and enemy.rect.right < player.rect.left:
                 enemy.passed = True
                 score += 2
 
+        # Enemy collision
         if pygame.sprite.spritecollide(player, enemies, False):
             if player.damage_timer == 0:
                 player.health -= 10
@@ -190,9 +245,16 @@ def main():
         enemies.draw(WIN)
         collectibles.draw(WIN)
 
+        # Draw health bars
+        for enemy in enemies:
+            max_hp = 4000 if isinstance(enemy, BossEnemy) else 350
+            bar_width = 80 if isinstance(enemy, BossEnemy) else 40
+            draw_health_bar(enemy.rect.x, enemy.rect.y - 10, enemy.health, max_hp, bar_width)
+
         draw_health_bar(10, 10, player.health, 100)
         WIN.blit(FONT.render(f"Lives: {player.lives}", True, (0, 0, 0)), (10, 25))
         WIN.blit(FONT.render(f"Score: {score}", True, (0, 0, 0)), (10, 40))
+        WIN.blit(FONT.render(f"Level: {level}", True, (0, 0, 0)), (10, 55))
 
         pygame.display.update()
 
