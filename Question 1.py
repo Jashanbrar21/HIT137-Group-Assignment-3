@@ -1,5 +1,3 @@
-# Adds cropping result preview beside original image
-
 import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
@@ -20,6 +18,12 @@ class ImageApp:
         self.preview.grid(row=0, column=1, padx=10)
 
         tk.Button(self.root, text="Load Image", command=self.load_image).pack(pady=5)
+        tk.Button(self.root, text="Save Cropped Image", command=self.save_image).pack(pady=5)
+
+        self.slider = tk.Scale(self.root, from_=10, to=200, orient=tk.HORIZONTAL,
+                               label="Resize %", command=self.resize_preview)
+        self.slider.set(100)
+        self.slider.pack(pady=5)
 
         self.cv_image = None
         self.clone_image = None
@@ -43,9 +47,8 @@ class ImageApp:
         self.canvas.bind("<ButtonRelease-1>", self.end_crop)
 
     def display_image(self, img_array):
-        max_w, max_h = 800, 600
         h, w = img_array.shape[:2]
-        self.scale = min(max_w / w, max_h / h)
+        self.scale = min(800 / w, 600 / h)
         new_w, new_h = int(w * self.scale), int(h * self.scale)
         resized = cv2.resize(img_array, (new_w, new_h))
         self.tk_image = ImageTk.PhotoImage(Image.fromarray(resized))
@@ -57,14 +60,12 @@ class ImageApp:
         self.start_x, self.start_y = event.x, event.y
         if self.rect_id:
             self.canvas.delete(self.rect_id)
-        self.rect_id = None
 
     def draw_crop(self, event):
         if self.rect_id:
             self.canvas.delete(self.rect_id)
-        self.rect_id = self.canvas.create_rectangle(
-            self.start_x, self.start_y, event.x, event.y, outline="red", width=2
-        )
+        self.rect_id = self.canvas.create_rectangle(self.start_x, self.start_y, event.x, event.y,
+                                                    outline="red", width=2)
 
     def end_crop(self, event):
         x1, x2 = sorted([self.start_x, event.x])
@@ -75,17 +76,31 @@ class ImageApp:
 
         if x2 > x1 and y2 > y1:
             self.cropped = self.clone_image[y1:y2, x1:x2]
-            self.show_preview()
+            self.update_preview(int(self.slider.get()))
 
         if self.rect_id:
             self.canvas.delete(self.rect_id)
             self.rect_id = None
 
-    def show_preview(self):
-        img = Image.fromarray(self.cropped)
-        tk_img = ImageTk.PhotoImage(img)
+    def resize_preview(self, val):
+        self.update_preview(int(val))
+
+    def update_preview(self, scale_percent):
+        if self.cropped is None:
+            return
+        w = int(self.cropped.shape[1] * scale_percent / 100)
+        h = int(self.cropped.shape[0] * scale_percent / 100)
+        resized = cv2.resize(self.cropped, (w, h))
+        tk_img = ImageTk.PhotoImage(Image.fromarray(resized))
         self.preview.config(image=tk_img)
         self.preview.image = tk_img
+
+    def save_image(self):
+        if self.cropped is not None:
+            path = filedialog.asksaveasfilename(defaultextension=".png",
+                                                filetypes=[("PNG", "*.png"), ("JPEG", "*.jpg")])
+            if path:
+                cv2.imwrite(path, cv2.cvtColor(self.cropped, cv2.COLOR_RGB2BGR))
 
 if __name__ == "__main__":
     root = tk.Tk()
